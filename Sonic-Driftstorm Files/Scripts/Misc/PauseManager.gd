@@ -1,0 +1,250 @@
+extends Control
+
+var Text = preload("res://Entities/Misc/PauseMenuText.tscn")
+
+# note: first option in an array is the title, it can't be selected
+var menusText = [
+# menu 0 (starting menu)
+[
+"pause",
+"continue",
+"options",
+"restart",
+"quit",],
+# menu 1 (options menu)
+[
+"options",
+"sound 100",
+"music 100",
+"scale x1",
+"full screen off",
+"smooth rotation off",
+"extended camera off",
+"time limit on",
+"time tracking",
+"discord rpc",
+"controls",
+"back",],
+# menu 2 (restart menu confirm)
+[
+"restart",
+"cancel",
+"ok",],
+# menu 3 (quit game confirm)
+[
+"quit",
+"cancel",
+"ok",],
+]
+
+# on or off strings
+var onOff = ["off","on"]
+# clamp for minimum and maximum sound volume (muted when audio is at lowest)
+var clampSounds = [-40.0,6.0]
+# how much to iterate through (take the total sum then divide it by how many steps we want)
+@onready var soundStep = (abs(clampSounds[0])+abs(clampSounds[1]))/100.0
+# button delay
+var soundStepDelay = 0
+var subSoundStep = 1.0
+# screen size limit
+var zoomClamp = [1,6]
+
+var menu = 0 # current menu option
+enum MENUS {MAIN, OPTIONS, RESTART, QUIT}
+var option = 0
+# Used to avoid repeated detection of inputs with analog stick
+var lastInput = Vector2.ZERO
+
+func _ready():
+	set_menu(menu)
+
+func _process(_delta):
+	# check if paused and visible, otherwise cancel it out
+	if !get_tree().paused or !visible:
+		return null
+	do_lateral_input()
+
+func _input(event):
+	# check if paused and visible, otherwise cancel it out
+	if !get_tree().paused or !visible:
+		return null
+
+	# menu button activate
+	if event.is_action_pressed("gm_pause") or event.is_action_pressed("gm_action"):
+		match(menu): # menu handles
+			MENUS.MAIN: # main menu
+				match(option): # Options
+					0: # continue
+						if Main.wasPaused:
+							# give frame so game doesn't immedaitely unpause
+							await get_tree().process_frame
+							Main.wasPaused = false
+							get_tree().paused = false
+							visible = false
+					_: # Set menu to option
+						set_menu(option)
+			MENUS.OPTIONS: # options menu
+				match(option): # Options
+					3: # full screen
+						get_window().mode = Window.MODE_EXCLUSIVE_FULLSCREEN if (!((get_window().mode == Window.MODE_EXCLUSIVE_FULLSCREEN) or (get_window().mode == Window.MODE_FULLSCREEN))) else Window.MODE_WINDOWED
+						$PauseMenu/VBoxContainer.get_child(option+1).get_child(0).text = update_text(option+1)
+					4: # smooth rotation
+						Global.smooth_rotation = (Global.smooth_rotation + 1) % 2
+						$PauseMenu/VBoxContainer.get_child(option+1).get_child(0).text = update_text(option+1)
+					5: # extended camera
+						Global.extended_camera = (Global.extended_camera + 1) % 2
+						$PauseMenu/VBoxContainer.get_child(option+1).get_child(0).text = update_text(option+1)
+					6: # time limit
+						Global.time_limit = (Global.time_limit + 1) % 2
+						$PauseMenu/VBoxContainer.get_child(option+1).get_child(0).text = update_text(option+1)
+					7: # time tracking
+						Global.time_tracking = ((Global.time_tracking + 1) % Global.TIME_TRACKING_MODES.size()) as Global.TIME_TRACKING_MODES
+						$PauseMenu/VBoxContainer.get_child(option+1).get_child(0).text = update_text(option+1)
+					8: # discord rpc
+						Global.discord_rpc = (Global.discord_rpc + 1) % 2
+						if Global.discord_rpc:
+							Global.discord_rpc_setup()
+						else:
+							DiscordRPC.clear()
+						$PauseMenu/VBoxContainer.get_child(option+1).get_child(0).text = update_text(option+1)
+					9: # control menu
+						Global.save_settings()
+						set_menu(0)
+						$"../ControllerMenu".visible = true
+						visible = false
+						Global.main.wasPaused = false
+						Main.wasPaused = false
+						get_tree().paused = true
+					10: # back
+						Global.save_settings()
+						set_menu(0)
+			MENUS.RESTART: # reset level
+				match(option): # Options
+					0: # cancel
+						set_menu(0)
+					1: # ok
+						set_menu(0)
+						Main.wasPaused = false
+						visible = false
+						Global.checkPointTime = 0
+						Global.currentCheckPoint = -1
+						Main.change_scene(Global.currentZone,"FadeOut",1,true)
+						await Main.scene_faded
+						Global.effectTheme.stop()
+						Global.bossMusic.stop()
+						Global.music.stop()
+						Main.set_volume(0)
+			MENUS.QUIT: # quit option
+				match(option): # Options
+					0: # cancel
+						set_menu(0)
+					1: # ok
+						await get_tree().process_frame
+						visible = false
+						set_menu(0)
+						Main.reset_game()
+						
+
+func do_lateral_input():
+
+	var inputCue = Input.get_vector("gm_left","gm_right","gm_up","ui_down")
+	inputCue.x = round(inputCue.x)
+	inputCue.y = round(inputCue.y)
+	
+	if inputCue.x != 0 and subSoundStep == 0:
+		subSoundStep = 5.0
+		soundStepDelay = 0
+	
+	# change menu options
+	if inputCue.y != lastInput.y:
+		if inputCue.y > 0:
+			choose_option(option+1)
+		elif inputCue.y < 0:
+			choose_option(option-1)
+	
+	# Volume controls
+	elif inputCue.x != 0 and menu == MENUS.OPTIONS:
+		var inputDir = inputCue.x
+		
+		# set audio busses
+		var getBus = "SFX"
+		if option > 0:
+			getBus = "Music"
+		var soundExample = [$MenuVert,$MenuMusicVolume]
+		
+		match(option):
+			0, 1: # Volume
+				if soundStepDelay <= 0:
+					soundExample[option].play()
+					AudioServer.set_bus_volume_db(AudioServer.get_bus_index(getBus),clamp(AudioServer.get_bus_volume_db(AudioServer.get_bus_index(getBus))+inputDir*soundStep,clampSounds[0],clampSounds[1]))
+					AudioServer.set_bus_mute(AudioServer.get_bus_index(getBus),AudioServer.get_bus_volume_db(AudioServer.get_bus_index(getBus)) <= clampSounds[0])
+					soundStepDelay = subSoundStep
+				else:
+					soundStepDelay -= 0.1
+			2: # Scale
+				if inputCue.x != 0 and inputCue != lastInput:
+					Global.zoomSize = clamp(Global.zoomSize+inputDir,zoomClamp[0],zoomClamp[1])
+					var window = get_window()
+					var newSize = Vector2i((get_viewport().get_visible_rect().size*Global.zoomSize).round())
+					window.set_position(window.get_position()+(window.size-newSize)/2)
+					window.set_size(newSize)
+		$PauseMenu/VBoxContainer.get_child(option+1).get_child(0).text = update_text(option+1)
+	lastInput = inputCue
+
+func choose_option(optionSet = option+1, playSound = true):
+	# reset curren option colour to white
+	$PauseMenu/VBoxContainer.get_child(option+1).modulate = Color.WHITE
+	# change to new option, set the new option colour to yellow
+	option = wrapi(optionSet,0,menusText[menu].size()-1)
+	$PauseMenu/VBoxContainer.get_child(option+1).modulate = Color(1,1,0)
+	
+	if playSound:
+		$MenuVert.play()
+
+func set_menu(menuID = 0):
+	# clear all current text nodes
+	for i in $PauseMenu/VBoxContainer.get_children():
+		i.queue_free()
+	# set new menu
+	menu = menuID
+	
+	# loop through menu lists and create a text node for each option
+	for i in menusText[menuID].size():
+		var text = Text.instantiate()
+		$PauseMenu/VBoxContainer.add_child(text)
+		var getText = text.get_child(0)
+		if menuID != 1:
+			getText.text = menusText[menuID][i]
+		else: # options menu settings
+			getText.text = update_text(i)
+		if i == 0: # set title option to red
+			text.modulate = Color(1,0,0)
+		if i == 1: # set default option to yellow
+			text.modulate = Color(1,1,0)
+	# reset option (prevents going beyond the current option list)
+	choose_option(0,false)
+
+
+# updates for the option menu texts
+func update_text(textRow = 0):
+	match(textRow):
+		1: # Sound
+			return "sound "+str(round(((AudioServer.get_bus_volume_db(AudioServer.get_bus_index("SFX"))-clampSounds[0])/(abs(clampSounds[0])+abs(clampSounds[1])))*100))
+		2: # Music
+			return "music "+str(round(((AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Music"))-clampSounds[0])/(abs(clampSounds[0])+abs(clampSounds[1])))*100))
+		3: # Scale
+			return "scale x"+str(Global.zoom_size)
+		4: # Full screen
+			return "full screen "+onOff[int(((get_window().mode == Window.MODE_EXCLUSIVE_FULLSCREEN) or (get_window().mode == Window.MODE_FULLSCREEN)))]
+		5: # Smooth Rotation
+			return "smooth rotation " + onOff[Global.smooth_rotation]
+		6: # Extended Camera
+			return "extended camera " + onOff[Global.extended_camera]
+		7: # Time Limit
+			return "time limit " + onOff[Global.time_limit]
+		8: # Time tracking
+			return "time tracking " + Global.TIME_TRACKING_MODES.find_key(Global.time_tracking).capitalize().to_lower()
+		9: # Discord RPC
+			return "discord rpc " + onOff[Global.discord_rpc]
+		_: # Default
+			return menusText[menu][textRow]

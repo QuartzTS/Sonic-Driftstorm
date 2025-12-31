@@ -1,0 +1,55 @@
+extends CharacterBody2D
+var getCam = null
+var player = null
+
+@onready var screenXSize = GlobalFunctions.get_screen_size().x
+
+func _physics_process(_delta):
+	# check if player.x position is greater then the post
+	if Global.players and Global.players[0].global_position.x > global_position.x and Global.players[0].global_position.y <= global_position.y and Global.stageClearPhase == 0:
+		# set player variable
+		player = Global.players[0]
+		
+		# Camera limit set
+		player.limitLeft = global_position.x -screenXSize/2
+		player.limitRight = global_position.x +(screenXSize/2)+48
+		if player.get("partner") != null:
+			player.partner.limitLeft = global_position.x -screenXSize/2
+			player.partner.limitRight = global_position.x +(screenXSize/2)+48
+		getCam = player.camera
+		
+		Main.sceneCanPause = false
+		
+		# play spinner
+		$Animator.play("Spinner")
+		match player.character:
+			Global.CHARACTERS.TAILS:
+				$Animator.queue("Tails")
+			Global.CHARACTERS.KNUCKLES:
+				$Animator.queue("Knuckles")
+			Global.CHARACTERS.AMY:
+				$Animator.queue("Amy")
+			_:
+				$Animator.queue("Sonic")
+		$GoalPost.play()
+		# set global stage clear phase to 1, 1 is used to stop the timer (see HUD script)
+		Global.stageClearPhase = 1
+		
+		# wait for spinner to finish
+		await $Animator.animation_finished
+		# after finishing spin, set stage clear to 2 and disable the players controls,
+		# stage clear is set to 2 so that the level ending doesn't start prematurely but we can track where the player is
+		Global.stageClearPhase = 2
+
+	# stage clear settings
+	if Global.stageClearPhase != 0:
+		# lock camera to self
+		if getCam:
+			getCam.global_position.x = global_position.x
+		# if player greater then screen and stage clear phase is 2 then activate the stage clear sequence
+		if player and Global.stageClearPhase == 2:
+				# stage clear won't work is stage clear phase isn't 0
+				Global.stageClearPhase = 0
+				Global.stage_clear()
+				# set stage clear to 3, this will activate the HUD sequence
+				Global.stageClearPhase = 3

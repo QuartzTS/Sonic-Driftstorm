@@ -1,0 +1,176 @@
+[gd_scene load_steps=16 format=3 uid="uid://gklj3ebdwveu"]
+
+[ext_resource type="Texture2D" uid="uid://bf6cekji71vif" path="res://Graphics/Items/MonitorIcons.png" id="1"]
+[ext_resource type="Texture2D" uid="uid://c8qtrmw44es3g" path="res://Graphics/Items/monitors.png" id="2"]
+[ext_resource type="Script" uid="uid://c8x6d645256j2" path="res://Scripts/Objects/MonitorPhysics.gd" id="2_rvnba"]
+[ext_resource type="Script" uid="uid://bbpmknqu30s4w" path="res://Scripts/Objects/Monitor.gd" id="3"]
+[ext_resource type="AudioStream" uid="uid://ivlmvt8mk3u4" path="res://Audio/SFX/Objects/DestroyObject.wav" id="4"]
+[ext_resource type="AudioStream" uid="uid://jt28gfxybprb" path="res://Audio/SFX/Objects/RingStereo.wav" id="5"]
+
+[sub_resource type="RectangleShape2D" id="1"]
+size = Vector2(30, 30)
+
+[sub_resource type="AtlasTexture" id="5"]
+atlas = ExtResource("2")
+region = Rect2(32, 32, 32, 32)
+
+[sub_resource type="AtlasTexture" id="3"]
+atlas = ExtResource("2")
+region = Rect2(0, 32, 32, 32)
+
+[sub_resource type="AtlasTexture" id="4"]
+atlas = ExtResource("2")
+region = Rect2(32, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="2"]
+atlas = ExtResource("2")
+region = Rect2(0, 0, 32, 32)
+
+[sub_resource type="SpriteFrames" id="6"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("5")
+}],
+"loop": true,
+"name": &"Busted",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("3")
+}, {
+"duration": 1.0,
+"texture": SubResource("3")
+}, {
+"duration": 1.0,
+"texture": SubResource("4")
+}, {
+"duration": 1.0,
+"texture": SubResource("3")
+}, {
+"duration": 1.0,
+"texture": SubResource("3")
+}, {
+"duration": 1.0,
+"texture": SubResource("2")
+}],
+"loop": true,
+"name": &"default",
+"speed": 30.0
+}]
+
+[sub_resource type="Animation" id="7"]
+resource_name = "DestroyMonitor"
+length = 0.533333
+step = 0.0166667
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("MonitorBody/Monitor:animation")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": ["Busted"]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("MonitorBody:collision_layer")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [0]
+}
+
+[sub_resource type="Animation" id="8"]
+resource_name = "RESET"
+length = 0.1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("MonitorBody/Monitor:animation")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": ["default"]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("MonitorBody:collision_layer")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [98304]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_b4dus"]
+_data = {
+&"DestroyMonitor": SubResource("7"),
+&"RESET": SubResource("8")
+}
+
+[node name="Monitor" type="Node2D"]
+script = ExtResource("3")
+
+[node name="MonitorBody" type="CharacterBody2D" parent="."]
+collision_layer = 98304
+script = ExtResource("2_rvnba")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MonitorBody"]
+visible = false
+shape = SubResource("1")
+
+[node name="Monitor" type="AnimatedSprite2D" parent="MonitorBody"]
+sprite_frames = SubResource("6")
+autoplay = "default"
+
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="MonitorBody"]
+rect = Rect2(-15, -15, 30, 30)
+
+[node name="DamageArea" type="Area2D" parent="MonitorBody"]
+visible = false
+collision_layer = 0
+collision_mask = 8912896
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MonitorBody/DamageArea"]
+shape = SubResource("1")
+
+[node name="Item" type="Sprite2D" parent="MonitorBody"]
+position = Vector2(0, -2)
+texture = ExtResource("1")
+hframes = 11
+vframes = 2
+frame = 2
+
+[node name="Animator" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_b4dus")
+}
+next/DestroyMonitor = &"fadeIcon"
+
+[node name="SFX" type="Node" parent="."]
+
+[node name="Destroy" type="AudioStreamPlayer" parent="SFX"]
+stream = ExtResource("4")
+bus = &"SFX"
+
+[node name="Ring" type="AudioStreamPlayer" parent="SFX"]
+stream = ExtResource("5")
+volume_db = -5.0
+bus = &"SFX"
+
+[connection signal="area_entered" from="MonitorBody/DamageArea" to="." method="_on_DamageArea_area_entered"]

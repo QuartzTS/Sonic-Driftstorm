@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://dlw2n41flld4n"
+path="res://.godot/imported/11. Sonic Megamix 5.0 OST Extended -Dark Fortress Zone [TubeRipper.cc].ogg-9d85027ba82a0cfff2e3e3c29d06e135.oggvorbisstr"
+
+[deps]
+
+source_file="res://Audio/Soundtrack/11. Sonic Megamix 5.0 OST Extended -Dark Fortress Zone [TubeRipper.cc].ogg"
+dest_files=["res://.godot/imported/11. Sonic Megamix 5.0 OST Extended -Dark Fortress Zone [TubeRipper.cc].ogg-9d85027ba82a0cfff2e3e3c29d06e135.oggvorbisstr"]
+
+[params]
+
+loop=true
+loop_offset=0.15
+bpm=0
+beat_count=0
+bar_beats=4
